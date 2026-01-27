@@ -38,9 +38,9 @@ The app has two core flows:
 
 **Key Components:**
 - `AppDelegate` (App.swift) - Wires everything together, handles URL open events
-- `AppSettings` (Settings.swift) - UserDefaults wrapper for `trackedBrowsers` and `fallbackBrowser`
+- `AppSettings` (Settings.swift) - UserDefaults wrapper for `trackedBrowsers`, `fallbackBrowser`, `menuBarDisplayMode`
 - `BrowserDetector` - Scans installed browsers using `LSCopyApplicationURLsForURL`
-- `MenuBarController` - NSStatusItem with NSPopover containing SwiftUI `SettingsView`
+- `MenuBarController` - NSStatusItem with native NSMenu (built dynamically via `NSMenuDelegate`)
 
 ## Important Notes
 

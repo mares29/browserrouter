@@ -38,9 +38,11 @@ Just use your Mac normally. BrowserRouter runs in the background and:
 
 Click the menu bar icon to:
 - See which browser is currently active
-- Choose which browsers to track
-- Set a fallback browser
+- Choose which browsers to track (Tracked Browsers submenu)
+- Set a fallback browser (Fallback Browser submenu)
+- Configure menu bar display (icon only, icon + letter, or icon + name)
 - Enable launch at login
+- Set BrowserRouter as default browser
 
 ## How It Works
 
