@@ -19,6 +19,11 @@ struct SettingsView: View {
             launchAtLoginToggle
             Divider()
             actions
+            Divider()
+            Button("Quit BrowserRouter") {
+                NSApp.terminate(nil)
+            }
+            .foregroundColor(.red)
         }
         .padding()
         .onAppear { detectedBrowsers = BrowserDetector.detectBrowsers() }
