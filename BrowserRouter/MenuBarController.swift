@@ -5,6 +5,7 @@ import Combine
 final class MenuBarController: NSObject, ObservableObject {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
+    private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     private let settings: AppSettings
@@ -79,5 +80,31 @@ final class MenuBarController: NSObject, ObservableObject {
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
+    }
+
+    func openSettingsWindow() {
+        // Close popover first
+        popover?.performClose(nil)
+
+        // If window exists, just bring to front
+        if let window = settingsWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Create new settings window
+        let settingsView = SettingsWindowView(settings: settings)
+        let hostingController = NSHostingController(rootView: settingsView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "BrowserRouter Settings"
+        window.styleMask = [.titled, .closable]
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        settingsWindow = window
     }
 }
