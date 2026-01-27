@@ -19,13 +19,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var urlHandler: URLHandler!
     private var menuBarController: MenuBarController!
     private var firstLaunchWindow: NSWindow?
+    private var detectedBrowsers: [Browser] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = AppSettings()
         stack = BrowserStack()
+        detectedBrowsers = BrowserDetector.detectBrowsers()
+
         focusMonitor = FocusMonitor(settings: settings, stack: stack)
         urlHandler = URLHandler(settings: settings, stack: stack)
-        menuBarController = MenuBarController()
+        menuBarController = MenuBarController(settings: settings, stack: stack, browsers: detectedBrowsers)
 
         let settingsView = SettingsView(settings: settings, stack: stack)
         menuBarController.setup(settingsView: settingsView)
