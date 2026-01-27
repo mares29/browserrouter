@@ -10,6 +10,15 @@ When using multiple browsers (Chrome, Safari, Arc, Firefox), clicking links in o
 
 ## Installation
 
+### Download
+
+Download the latest release from [GitHub Releases](https://github.com/mares29/browserrouter/releases).
+
+1. Download `BrowserRouter-vX.X.X.zip`
+2. Unzip and drag `BrowserRouter.app` to your Applications folder
+3. Right-click the app → **Open** (required for unsigned apps)
+4. Click **Open** in the dialog to bypass Gatekeeper
+
 ### Build from source
 
 Requires Swift 5.9+ and macOS 13+.
