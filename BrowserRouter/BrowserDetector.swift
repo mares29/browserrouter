@@ -5,8 +5,18 @@ struct Browser: Identifiable, Equatable, Hashable {
     let bundleID: String
     let name: String
     let path: URL
+    let icon: NSImage
 
     var id: String { bundleID }
+
+    // Hashable conformance - exclude icon from hash
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(bundleID)
+    }
+
+    static func == (lhs: Browser, rhs: Browser) -> Bool {
+        lhs.bundleID == rhs.bundleID
+    }
 }
 
 enum BrowserDetector {
@@ -28,7 +38,8 @@ enum BrowserDetector {
             // Skip ourselves
             if bundleID == Bundle.main.bundleIdentifier { continue }
 
-            browsers.append(Browser(bundleID: bundleID, name: name, path: appURL))
+            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+            browsers.append(Browser(bundleID: bundleID, name: name, path: appURL, icon: icon))
         }
 
         return browsers.sorted { $0.name < $1.name }
