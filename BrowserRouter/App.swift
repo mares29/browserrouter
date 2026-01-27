@@ -30,10 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         urlHandler = URLHandler(settings: settings, stack: stack)
         menuBarController = MenuBarController(settings: settings, stack: stack, browsers: detectedBrowsers)
 
-        let settingsView = SettingsView(settings: settings, stack: stack) {
-            self.menuBarController.openSettingsWindow()
-        }
-        menuBarController.setup(settingsView: settingsView)
+        menuBarController.setup()
 
         focusMonitor.start()
 
