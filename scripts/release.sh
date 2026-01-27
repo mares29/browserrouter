@@ -28,6 +28,9 @@ cp ".build/release/$APP_NAME" "$BUNDLE_DIR/Contents/MacOS/"
 # Copy Info.plist
 cp "$PROJECT_DIR/$APP_NAME/Info.plist" "$BUNDLE_DIR/Contents/"
 
+# Copy app icon
+cp "$PROJECT_DIR/AppIcon.icns" "$BUNDLE_DIR/Contents/Resources/"
+
 # Create PkgInfo
 echo -n "APPL????" > "$BUNDLE_DIR/Contents/PkgInfo"
 
