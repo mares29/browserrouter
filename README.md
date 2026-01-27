@@ -2,6 +2,8 @@
 
 A macOS menu bar app that opens links in the most recently focused browser.
 
+Fully open source — verify the code yourself. Built with [Claude Code](https://claude.ai/code).
+
 ## Why?
 
 When using multiple browsers (Chrome, Safari, Arc, Firefox), clicking links in other apps always opens in a fixed default browser. BrowserRouter fixes this by tracking which browser you were last using and routing links there.
@@ -50,6 +52,10 @@ Click the menu bar icon to:
 2. Listens for `NSWorkspace.didActivateApplicationNotification` to track browser focus
 3. When a URL is opened, routes it to the most recently focused (and currently running) browser
 
+## Privacy
+
+BrowserRouter stores only a list of your recently used browsers locally on your Mac. No analytics, no network requests, no URL logging. See [PRIVACY.md](PRIVACY.md) for details.
+
 ## License
 
-MIT
+[MIT](LICENSE)
