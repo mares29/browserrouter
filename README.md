@@ -16,8 +16,11 @@ Download the latest release from [GitHub Releases](https://github.com/mares29/br
 
 1. Download `BrowserRouter-vX.X.X.zip`
 2. Unzip and drag `BrowserRouter.app` to your Applications folder
-3. Right-click the app → **Open** (required for unsigned apps)
-4. Click **Open** in the dialog to bypass Gatekeeper
+3. Remove the quarantine attribute (required for unsigned apps):
+   ```bash
+   xattr -cr /Applications/BrowserRouter.app
+   ```
+4. Open the app normally
 
 ### Build from source
 
