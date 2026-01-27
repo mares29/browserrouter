@@ -14,6 +14,8 @@ struct SettingsView: View {
             browserList
             fallbackPicker
             Divider()
+            displayModePicker
+            Divider()
             launchAtLoginToggle
             Divider()
             actions
@@ -70,6 +72,21 @@ struct SettingsView: View {
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }
         ))
+    }
+
+    private var displayModePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Menu bar display:")
+                .font(.subheadline)
+
+            Picker("", selection: $settings.menuBarDisplayMode) {
+                ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+        }
     }
 
     private var actions: some View {
