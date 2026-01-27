@@ -1,34 +1,32 @@
 import SwiftUI
-import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var stack: BrowserStack
+    var onOpenSettings: () -> Void
 
     @State private var detectedBrowsers: [Browser] = []
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             header
+                .padding(.bottom, 12)
+
+            sectionHeader("Tracked Browsers")
+
             browserList
-            fallbackPicker
+                .padding(.bottom, 12)
+
             Divider()
-            displayModePicker
-            Divider()
-            launchAtLoginToggle
-            Divider()
-            actions
-            Divider()
-            Button("Quit BrowserRouter") {
-                NSApp.terminate(nil)
-            }
-            .foregroundColor(.red)
+                .padding(.vertical, 8)
+
+            bottomActions
         }
-        .padding()
+        .padding(16)
+        .frame(width: 280)
+        .background(.ultraThinMaterial)
         .onAppear {
             detectedBrowsers = BrowserDetector.detectBrowsers()
-            // Auto-select first browser as fallback if none set
             if settings.fallbackBrowser == nil, let first = detectedBrowsers.first {
                 settings.fallbackBrowser = first.bundleID
             }
@@ -36,80 +34,69 @@ struct SettingsView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text("BrowserRouter")
                 .font(.headline)
 
-            if let current = stack.mostRecent,
-               let browser = detectedBrowsers.first(where: { $0.bundleID == current }) {
-                Text("Current: \(browser.name)")
+            if let currentID = stack.mostRecent,
+               let browser = detectedBrowsers.first(where: { $0.bundleID == currentID }) {
+                Text("Opening links in \(browser.name)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No browser selected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .padding(.bottom, 8)
     }
 
     private var browserList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Track these browsers:")
-                .font(.subheadline)
-
+        VStack(spacing: 0) {
             ForEach(detectedBrowsers) { browser in
-                Toggle(browser.name, isOn: binding(for: browser.bundleID))
+                browserRow(browser)
             }
         }
     }
 
-    private var fallbackPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Fallback browser:")
-                .font(.subheadline)
+    private func browserRow(_ browser: Browser) -> some View {
+        HStack(spacing: 12) {
+            Image(nsImage: browser.icon)
+                .resizable()
+                .frame(width: 20, height: 20)
 
-            Picker("", selection: $settings.fallbackBrowser) {
-                ForEach(detectedBrowsers) { browser in
-                    Text(browser.name).tag(browser.bundleID as String?)
-                }
-            }
-            .labelsHidden()
-        }
-    }
-
-    private var launchAtLoginToggle: some View {
-        Toggle("Launch at Login", isOn: Binding(
-            get: { launchAtLogin },
-            set: { newValue in
-                toggleLaunchAtLogin(newValue)
-                launchAtLogin = SMAppService.mainApp.status == .enabled
-            }
-        ))
-    }
-
-    private var displayModePicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Menu bar display:")
-                .font(.subheadline)
-
-            Picker("", selection: $settings.menuBarDisplayMode) {
-                ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-        }
-    }
-
-    private var actions: some View {
-        HStack {
-            Button("Rescan Browsers") {
-                detectedBrowsers = BrowserDetector.detectBrowsers()
-            }
+            Text(browser.name)
+                .font(.body)
 
             Spacer()
 
-            Button("Set as Default Browser") {
-                setAsDefaultBrowser()
+            Toggle("", isOn: binding(for: browser.bundleID))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var bottomActions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button("BrowserRouter Settings...") {
+                onOpenSettings()
             }
+            .buttonStyle(.plain)
+
+            Button("Quit BrowserRouter") {
+                NSApp.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
         }
     }
 
@@ -124,23 +111,5 @@ struct SettingsView: View {
                 }
             }
         )
-    }
-
-    private func setAsDefaultBrowser() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID as CFString)
-    }
-
-    private func toggleLaunchAtLogin(_ enabled: Bool) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-        } catch {
-            print("Failed to update login item: \(error)")
-        }
     }
 }
