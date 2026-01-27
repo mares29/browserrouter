@@ -18,9 +18,8 @@ final class URLHandler {
             openURL(url, inBrowser: browser)
         } else if let fallback = settings.fallbackBrowser {
             openURL(url, inBrowser: fallback)
-        } else {
-            openURLWithSystemDefault(url)
         }
+        // If no fallback set, URL is not opened (avoids infinite loop since we ARE the default browser)
     }
 
     static func selectBrowser(fromStack stack: [String], running: [String]) -> String? {
@@ -32,18 +31,14 @@ final class URLHandler {
         let config = NSWorkspace.OpenConfiguration()
 
         guard let browserURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
-            openURLWithSystemDefault(url)
+            print("BrowserRouter: Could not find browser \(bundleID)")
             return
         }
 
         NSWorkspace.shared.open([url], withApplicationAt: browserURL, configuration: config) { _, error in
-            if error != nil {
-                self.openURLWithSystemDefault(url)
+            if let error {
+                print("BrowserRouter: Failed to open URL: \(error)")
             }
         }
-    }
-
-    private func openURLWithSystemDefault(_ url: URL) {
-        NSWorkspace.shared.open(url)
     }
 }

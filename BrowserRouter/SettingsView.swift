@@ -26,7 +26,13 @@ struct SettingsView: View {
             .foregroundColor(.red)
         }
         .padding()
-        .onAppear { detectedBrowsers = BrowserDetector.detectBrowsers() }
+        .onAppear {
+            detectedBrowsers = BrowserDetector.detectBrowsers()
+            // Auto-select first browser as fallback if none set
+            if settings.fallbackBrowser == nil, let first = detectedBrowsers.first {
+                settings.fallbackBrowser = first.bundleID
+            }
+        }
     }
 
     private var header: some View {
@@ -60,7 +66,6 @@ struct SettingsView: View {
                 .font(.subheadline)
 
             Picker("", selection: $settings.fallbackBrowser) {
-                Text("System Default").tag(nil as String?)
                 ForEach(detectedBrowsers) { browser in
                     Text(browser.name).tag(browser.bundleID as String?)
                 }
