@@ -103,7 +103,8 @@ EOF
 sync
 
 echo "Unmounting..."
-hdiutil detach "$MOUNT_DIR" -quiet
+hdiutil detach "$MOUNT_DIR" -force -quiet
+sleep 2
 
 echo "Converting to compressed DMG..."
 hdiutil convert "$DMG_TEMP" -format UDZO -imagekey zlib-level=9 -o "$DMG_FINAL"
@@ -112,6 +113,7 @@ rm -f "$DMG_TEMP"
 # Cleanup
 rm -rf "$DMG_STAGING"
 rm -f "$DMG_BACKGROUND"
+rm -rf "$BUNDLE_DIR"
 
 echo ""
 echo "Done! Created $DMG_FINAL"
