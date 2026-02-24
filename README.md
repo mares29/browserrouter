@@ -1,5 +1,9 @@
 # BrowserRouter
 
+<p align="center">
+  <img src="assets/banner.png" alt="Links follow your focus — Click a link anywhere. It opens in the browser you were last using." width="100%" />
+</p>
+
 A macOS menu bar app that opens links in the most recently focused browser.
 
 Fully open source — verify the code yourself. Built with [Claude Code](https://claude.ai/code).
@@ -51,6 +55,7 @@ Just use your Mac normally. BrowserRouter runs in the background and:
 - Falls back to your configured fallback browser or system default
 
 Click the menu bar icon to:
+
 - See which browser is currently active
 - Choose which browsers to track (Tracked Browsers submenu)
 - Set a fallback browser (Fallback Browser submenu)
