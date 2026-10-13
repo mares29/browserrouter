@@ -3,6 +3,8 @@ import SwiftUI
 struct FirstLaunchView: View {
     @ObservedObject var settings: AppSettings
     let browsers: [Browser]
+    /// System default browser before BrowserRouter took over
+    let previousDefault: String?
     var onComplete: () -> Void
 
     @State private var selectedBrowsers: Set<String> = []
@@ -44,15 +46,7 @@ struct FirstLaunchView: View {
                 Button("Continue") {
                     let selected = browsers.map(\.bundleID).filter { selectedBrowsers.contains($0) }
                     settings.trackedBrowsers = selected
-
-                    // Fall back to where links opened before BrowserRouter took over
-                    let previousDefault = BrowserDetector.systemDefaultBrowserID()
-                    if let previousDefault, browsers.contains(where: { $0.bundleID == previousDefault }) {
-                        settings.fallbackBrowser = previousDefault
-                    } else {
-                        settings.fallbackBrowser = selected.first
-                            ?? BrowserDetector.commonBrowserIDs.first { id in browsers.contains { $0.bundleID == id } }
-                    }
+                    settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: selected, installed: browsers.map(\.bundleID))
 
                     BrowserDetector.setSelfAsDefault()
                     onComplete()

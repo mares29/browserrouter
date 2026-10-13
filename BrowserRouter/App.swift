@@ -36,12 +36,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Check if first launch
         if !settings.hasLaunchedBefore {
+            // Seed defaults so Skip or closing the welcome window still leaves a working setup.
+            // Read the previous default before the welcome screen makes us the default.
+            let previousDefault = BrowserDetector.systemDefaultBrowserID()
+            let installed = detectedBrowsers.map(\.bundleID)
+            settings.trackedBrowsers = BrowserDetector.commonBrowserIDs.filter { installed.contains($0) }
+            settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: settings.trackedBrowsers, installed: installed)
             settings.hasLaunchedBefore = true
-            showFirstLaunchWindow()
-        } else if settings.trackedBrowsers.isEmpty {
-            // Pre-select common browsers if none selected
-            let detected = Set(detectedBrowsers.map(\.bundleID))
-            settings.trackedBrowsers = BrowserDetector.commonBrowserIDs.filter { detected.contains($0) }
+
+            showFirstLaunchWindow(previousDefault: previousDefault)
         }
     }
 
@@ -53,8 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusMonitor.stop()
     }
 
-    private func showFirstLaunchWindow() {
-        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers) { [weak self] in
+    private func showFirstLaunchWindow(previousDefault: String?) {
+        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers, previousDefault: previousDefault) { [weak self] in
             self?.firstLaunchWindow?.close()
             self?.firstLaunchWindow = nil
         }
