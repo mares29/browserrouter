@@ -33,6 +33,35 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(reloaded.fallbackBrowser, "com.apple.Safari")
     }
 
+    func test_rules_defaultToEmpty() {
+        XCTAssertEqual(settings.rules, [])
+    }
+
+    func test_rules_persistInOrder() {
+        settings.rules = [
+            URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome"),
+            URLRule(kind: .contains, pattern: "meet", browserID: "com.apple.Safari", isEnabled: false),
+        ]
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.rules, settings.rules)
+    }
+
+    func test_rules_persistEdits() {
+        settings.rules = [URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome")]
+        settings.rules[0].isEnabled = false
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.rules.first?.isEnabled, false)
+    }
+
+    func test_rules_emptyIfStoredDataIsUnreadable() {
+        defaults.set(Data("not json".utf8), forKey: "rules")
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.rules, [])
+    }
+
     func test_hasLaunchedBefore_defaultsToFalse() {
         XCTAssertFalse(settings.hasLaunchedBefore)
     }

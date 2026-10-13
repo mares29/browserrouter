@@ -82,6 +82,78 @@ final class URLHandlerTests: XCTestCase {
         XCTAssertEqual(Array(candidates.prefix(2)), ["com.google.Chrome", "com.apple.Safari"])
     }
 
+    // MARK: - Rules
+
+    private let github = URL(string: "https://github.com/mares29")!
+    private let meet = URL(string: "https://meet.google.com/abc")!
+    private let news = URL(string: "https://news.ycombinator.com")!
+
+    private func ruleBrowser(for url: URL, _ rules: [URLRule], installed: Set<String> = ["com.apple.Safari", "com.google.Chrome", "org.mozilla.firefox"]) -> String? {
+        URLHandler.ruleBrowser(for: url, rules: rules, selfID: selfID) { installed.contains($0) }
+    }
+
+    func test_ruleBrowser_usesMatchingRule() {
+        let rules = [URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome")]
+        XCTAssertEqual(ruleBrowser(for: github, rules), "com.google.Chrome")
+    }
+
+    func test_ruleBrowser_nilWithoutMatch() {
+        let rules = [URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome")]
+        XCTAssertNil(ruleBrowser(for: news, rules))
+        XCTAssertNil(ruleBrowser(for: github, []))
+    }
+
+    func test_ruleBrowser_firstMatchWins() {
+        let rules = [
+            URLRule(kind: .contains, pattern: "mares29", browserID: "org.mozilla.firefox"),
+            URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome"),
+        ]
+        XCTAssertEqual(ruleBrowser(for: github, rules), "org.mozilla.firefox")
+        XCTAssertEqual(ruleBrowser(for: URL(string: "https://github.com/apple")!, rules), "com.google.Chrome")
+    }
+
+    func test_ruleBrowser_skipsDisabledRules() {
+        let rules = [
+            URLRule(kind: .domain, pattern: "github.com", browserID: "org.mozilla.firefox", isEnabled: false),
+            URLRule(kind: .domain, pattern: "github.com", browserID: "com.google.Chrome"),
+        ]
+        XCTAssertEqual(ruleBrowser(for: github, rules), "com.google.Chrome")
+        XCTAssertNil(ruleBrowser(for: github, [rules[0]]))
+    }
+
+    func test_ruleBrowser_skipsRulesForMissingBrowsers() {
+        // Never drop a link: a rule for an uninstalled browser gives way to the next, then to focus
+        let rules = [
+            URLRule(kind: .domain, pattern: "github.com", browserID: "com.example.uninstalled"),
+            URLRule(kind: .contains, pattern: "github", browserID: "com.google.Chrome"),
+        ]
+        XCTAssertEqual(ruleBrowser(for: github, rules), "com.google.Chrome")
+        XCTAssertNil(ruleBrowser(for: github, [rules[0]]))
+    }
+
+    func test_ruleBrowser_neverChoosesSelf() {
+        let rules = [URLRule(kind: .domain, pattern: "github.com", browserID: selfID)]
+        XCTAssertNil(ruleBrowser(for: github, rules, installed: [selfID]))
+    }
+
+    func test_batches_groupLinksByBrowserInOrder() {
+        let route: [URL: String] = [github: "com.google.Chrome", meet: "com.apple.Safari", news: "com.google.Chrome"]
+
+        let batches = URLHandler.batches([github, meet, news]) { route[$0] }
+        XCTAssertEqual(batches.map(\.browser), ["com.google.Chrome", "com.apple.Safari"])
+        XCTAssertEqual(batches.map(\.urls), [[github, news], [meet]])
+    }
+
+    func test_batches_leaveOutLinksWithoutBrowser() {
+        let batches = URLHandler.batches([github, meet]) { $0 == meet ? "com.apple.Safari" : nil }
+        XCTAssertEqual(batches.map(\.browser), ["com.apple.Safari"])
+        XCTAssertEqual(batches.map(\.urls), [[meet]])
+    }
+
+    func test_batches_emptyWithoutLinks() {
+        XCTAssertTrue(URLHandler.batches([]) { _ in "com.apple.Safari" }.isEmpty)
+    }
+
     func test_defaultFallback_prefersPreviousDefault() {
         let installed = ["com.apple.Safari", "com.google.Chrome", "com.brave.Browser"]
 

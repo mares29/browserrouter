@@ -88,6 +88,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         fallbackItem.submenu = buildFallbackBrowserSubmenu()
         menu.addItem(fallbackItem)
 
+        // Rules submenu
+        let rulesItem = NSMenuItem(title: "Rules", action: nil, keyEquivalent: "")
+        rulesItem.submenu = buildRulesSubmenu()
+        menu.addItem(rulesItem)
+
         menu.addItem(.separator())
 
         // Menu Bar Display submenu
@@ -124,7 +129,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
-    /// The browser the next link will open in, as resolved by URLHandler
+    /// Where links follow focus to, as resolved by URLHandler; a rule can still send a link elsewhere
     private var targetBrowser: Browser? {
         guard let bundleID = urlHandler.targetBrowser() else { return nil }
         return browsers.first { $0.bundleID == bundleID } ?? BrowserDetector.browser(withBundleID: bundleID)
@@ -159,6 +164,76 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             submenu.addItem(item)
         }
         return submenu
+    }
+
+    private func buildRulesSubmenu() -> NSMenu {
+        let submenu = NSMenu()
+
+        if settings.rules.isEmpty {
+            let emptyItem = NSMenuItem(title: "No Rules", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            submenu.addItem(emptyItem)
+        }
+
+        // Listed in the order they are checked
+        for (index, rule) in settings.rules.enumerated() {
+            let item = NSMenuItem(title: ruleTitle(rule), action: nil, keyEquivalent: "")
+            item.state = rule.isEnabled ? .on : .off
+            item.toolTip = rule.pattern
+            item.submenu = buildRuleSubmenu(for: rule, at: index)
+            submenu.addItem(item)
+        }
+
+        submenu.addItem(.separator())
+
+        let addItem = NSMenuItem(title: "Add Rule…", action: #selector(addRule), keyEquivalent: "")
+        addItem.target = self
+        submenu.addItem(addItem)
+
+        return submenu
+    }
+
+    private func buildRuleSubmenu(for rule: URLRule, at index: Int) -> NSMenu {
+        let submenu = NSMenu()
+
+        // Move Up and Move Down get no action at the ends, so they show disabled
+        func addItem(_ title: String, _ action: Selector, isEnabled: Bool = true) -> NSMenuItem {
+            let item = NSMenuItem(title: title, action: isEnabled ? action : nil, keyEquivalent: "")
+            item.representedObject = rule.id
+            item.target = self
+            submenu.addItem(item)
+            return item
+        }
+
+        _ = addItem("Edit…", #selector(editRule(_:)))
+        addItem("Enabled", #selector(toggleRule(_:))).state = rule.isEnabled ? .on : .off
+        submenu.addItem(.separator())
+        _ = addItem("Move Up", #selector(moveRuleUp(_:)), isEnabled: index > 0)
+        _ = addItem("Move Down", #selector(moveRuleDown(_:)), isEnabled: index < settings.rules.count - 1)
+        submenu.addItem(.separator())
+        _ = addItem("Delete", #selector(deleteRule(_:)))
+
+        return submenu
+    }
+
+    /// "github.com → Google Chrome", with long patterns shortened
+    private func ruleTitle(_ rule: URLRule) -> String {
+        let pattern = rule.pattern.count > 40 ? rule.pattern.prefix(39) + "…" : rule.pattern
+        let match = rule.kind == .domain ? pattern : "\(rule.kind.label) “\(pattern)”"
+        return "\(match) → \(browserName(rule.browserID))"
+    }
+
+    private func browserName(_ bundleID: String) -> String {
+        let browser = browsers.first { $0.bundleID == bundleID } ?? BrowserDetector.browser(withBundleID: bundleID)
+        return browser?.name ?? "\(bundleID) (not installed)"
+    }
+
+    /// Browsers a rule can open, keeping the rule's own browser even when detection skips it
+    private func ruleBrowsers(including bundleID: String) -> [Browser] {
+        guard !browsers.contains(where: { $0.bundleID == bundleID }),
+              let browser = BrowserDetector.browser(withBundleID: bundleID)
+        else { return browsers }
+        return browsers + [browser]
     }
 
     private func buildDisplayModeSubmenu() -> NSMenu {
@@ -215,6 +290,48 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func setFallbackBrowser(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
         settings.fallbackBrowser = bundleID
+    }
+
+    @objc private func addRule() {
+        // Preselect where links go now; the user picks the rule's browser from there
+        guard let browserID = urlHandler.targetBrowser() ?? browsers.first?.bundleID else { return }
+        let draft = URLRule(kind: .domain, pattern: "", browserID: browserID)
+
+        guard let rule = RuleEditor(rule: draft, browsers: ruleBrowsers(including: browserID), isNew: true).run() else { return }
+        settings.rules.append(rule)
+    }
+
+    @objc private func editRule(_ sender: NSMenuItem) {
+        guard let index = ruleIndex(sender) else { return }
+        let rule = settings.rules[index]
+
+        guard let edited = RuleEditor(rule: rule, browsers: ruleBrowsers(including: rule.browserID), isNew: false).run() else { return }
+        settings.rules[index] = edited
+    }
+
+    @objc private func toggleRule(_ sender: NSMenuItem) {
+        guard let index = ruleIndex(sender) else { return }
+        settings.rules[index].isEnabled.toggle()
+    }
+
+    @objc private func moveRuleUp(_ sender: NSMenuItem) {
+        guard let index = ruleIndex(sender), index > 0 else { return }
+        settings.rules.swapAt(index, index - 1)
+    }
+
+    @objc private func moveRuleDown(_ sender: NSMenuItem) {
+        guard let index = ruleIndex(sender), index < settings.rules.count - 1 else { return }
+        settings.rules.swapAt(index, index + 1)
+    }
+
+    @objc private func deleteRule(_ sender: NSMenuItem) {
+        guard let index = ruleIndex(sender) else { return }
+        settings.rules.remove(at: index)
+    }
+
+    private func ruleIndex(_ sender: NSMenuItem) -> Int? {
+        guard let id = sender.representedObject as? UUID else { return nil }
+        return settings.rules.firstIndex { $0.id == id }
     }
 
     @objc private func setDisplayMode(_ sender: NSMenuItem) {

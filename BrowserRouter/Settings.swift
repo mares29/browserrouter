@@ -22,6 +22,7 @@ final class AppSettings: ObservableObject {
         static let fallbackBrowser = "fallbackBrowser"
         static let menuBarDisplayMode = "menuBarDisplayMode"
         static let hasLaunchedBefore = "hasLaunchedBefore"
+        static let rules = "rules"
     }
 
     @Published var trackedBrowsers: [String] {
@@ -36,6 +37,11 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(menuBarDisplayMode.rawValue, forKey: Keys.menuBarDisplayMode) }
     }
 
+    /// Checked in order before focus tracking; the first match picks the browser
+    @Published var rules: [URLRule] {
+        didSet { defaults.set(try? JSONEncoder().encode(rules), forKey: Keys.rules) }
+    }
+
     var hasLaunchedBefore: Bool {
         get { defaults.bool(forKey: Keys.hasLaunchedBefore) }
         set { defaults.set(newValue, forKey: Keys.hasLaunchedBefore) }
@@ -46,5 +52,6 @@ final class AppSettings: ObservableObject {
         self.trackedBrowsers = defaults.stringArray(forKey: Keys.trackedBrowsers) ?? []
         self.fallbackBrowser = defaults.string(forKey: Keys.fallbackBrowser)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: defaults.integer(forKey: Keys.menuBarDisplayMode)) ?? .iconOnly
+        self.rules = defaults.data(forKey: Keys.rules).flatMap { try? JSONDecoder().decode([URLRule].self, from: $0) } ?? []
     }
 }

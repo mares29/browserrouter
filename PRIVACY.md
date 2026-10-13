@@ -6,6 +6,8 @@ BrowserRouter is designed with privacy as a core principle. This document explai
 
 **Browser order list** - A list of browser bundle identifiers in the order you last used them, stored locally in UserDefaults.
 
+**Link rules** - The patterns and browsers you add under Rules, stored locally in UserDefaults.
+
 That's it.
 
 ## What BrowserRouter Does NOT Do
@@ -30,6 +32,7 @@ This file contains:
 - `browserStack` - Recent browser order (max 10 entries)
 - `fallbackBrowser` - Your configured fallback
 - `menuBarDisplayMode` - Display preference
+- `rules` - Your link rules (patterns and the browser each one opens)
 
 ## How to Verify
 
