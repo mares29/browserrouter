@@ -28,37 +28,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         focusMonitor = FocusMonitor(settings: settings, stack: stack)
         urlHandler = URLHandler(settings: settings, stack: stack)
-        menuBarController = MenuBarController(settings: settings, stack: stack, browsers: detectedBrowsers)
+        menuBarController = MenuBarController(settings: settings, stack: stack, urlHandler: urlHandler, browsers: detectedBrowsers)
 
         menuBarController.setup()
 
         focusMonitor.start()
 
         // Check if first launch
-        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
-        if !hasLaunched {
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
-            showFirstLaunchWindow()
-        } else if settings.trackedBrowsers.isEmpty {
-            // Pre-select common browsers if none selected
-            let common = ["com.apple.Safari", "com.google.Chrome", "company.thebrowser.Browser", "org.mozilla.firefox"]
-            let detected = Set(BrowserDetector.detectBrowsers().map(\.bundleID))
-            settings.trackedBrowsers = common.filter { detected.contains($0) }
+        if !settings.hasLaunchedBefore {
+            // Seed defaults so Skip or closing the welcome window still leaves a working setup.
+            // Read the previous default before the welcome screen makes us the default.
+            let previousDefault = BrowserDetector.systemDefaultBrowserID()
+            let installed = detectedBrowsers.map(\.bundleID)
+            settings.trackedBrowsers = BrowserDetector.commonBrowserIDs.filter { installed.contains($0) }
+            settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: settings.trackedBrowsers, installed: installed)
+            settings.hasLaunchedBefore = true
+
+            showFirstLaunchWindow(previousDefault: previousDefault)
         }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            urlHandler.handle(url)
-        }
+        urlHandler.handle(urls)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         focusMonitor.stop()
     }
 
-    private func showFirstLaunchWindow() {
-        let firstLaunchView = FirstLaunchView(settings: settings) { [weak self] in
+    private func showFirstLaunchWindow(previousDefault: String?) {
+        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers, previousDefault: previousDefault) { [weak self] in
             self?.firstLaunchWindow?.close()
             self?.firstLaunchWindow = nil
         }

@@ -21,6 +21,7 @@ final class AppSettings: ObservableObject {
         static let trackedBrowsers = "trackedBrowsers"
         static let fallbackBrowser = "fallbackBrowser"
         static let menuBarDisplayMode = "menuBarDisplayMode"
+        static let hasLaunchedBefore = "hasLaunchedBefore"
     }
 
     @Published var trackedBrowsers: [String] {
@@ -33,6 +34,11 @@ final class AppSettings: ObservableObject {
 
     @Published var menuBarDisplayMode: MenuBarDisplayMode {
         didSet { defaults.set(menuBarDisplayMode.rawValue, forKey: Keys.menuBarDisplayMode) }
+    }
+
+    var hasLaunchedBefore: Bool {
+        get { defaults.bool(forKey: Keys.hasLaunchedBefore) }
+        set { defaults.set(newValue, forKey: Keys.hasLaunchedBefore) }
     }
 
     init(defaults: UserDefaults = .standard) {

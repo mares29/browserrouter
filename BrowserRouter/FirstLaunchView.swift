@@ -1,11 +1,12 @@
 import SwiftUI
-import ServiceManagement
 
 struct FirstLaunchView: View {
     @ObservedObject var settings: AppSettings
+    let browsers: [Browser]
+    /// System default browser before BrowserRouter took over
+    let previousDefault: String?
     var onComplete: () -> Void
 
-    @State private var detectedBrowsers: [Browser] = []
     @State private var selectedBrowsers: Set<String> = []
 
     var body: some View {
@@ -27,7 +28,7 @@ struct FirstLaunchView: View {
                     .padding(.bottom, 8)
 
                 VStack(spacing: 0) {
-                    ForEach(detectedBrowsers) { browser in
+                    ForEach(browsers) { browser in
                         browserRow(browser)
                     }
                 }
@@ -43,11 +44,11 @@ struct FirstLaunchView: View {
                 Spacer()
 
                 Button("Continue") {
-                    settings.trackedBrowsers = Array(selectedBrowsers)
-                    if let first = detectedBrowsers.first {
-                        settings.fallbackBrowser = first.bundleID
-                    }
-                    promptForDefaultBrowser()
+                    let selected = browsers.map(\.bundleID).filter { selectedBrowsers.contains($0) }
+                    settings.trackedBrowsers = selected
+                    settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: selected, installed: browsers.map(\.bundleID))
+
+                    BrowserDetector.setSelfAsDefault()
                     onComplete()
                 }
                 .buttonStyle(.borderedProminent)
@@ -56,9 +57,7 @@ struct FirstLaunchView: View {
         .padding(24)
         .frame(width: 360)
         .onAppear {
-            detectedBrowsers = BrowserDetector.detectBrowsers()
-            let common: Set<String> = ["com.apple.Safari", "com.google.Chrome", "company.thebrowser.Browser"]
-            selectedBrowsers = common.intersection(Set(detectedBrowsers.map(\.bundleID)))
+            selectedBrowsers = Set(BrowserDetector.commonBrowserIDs).intersection(browsers.map(\.bundleID))
         }
     }
 
@@ -88,11 +87,5 @@ struct FirstLaunchView: View {
             .controlSize(.small)
         }
         .padding(.vertical, 4)
-    }
-
-    private func promptForDefaultBrowser() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID as CFString)
     }
 }

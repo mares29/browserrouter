@@ -1,40 +1,48 @@
 import AppKit
 import Combine
+import os
 import ServiceManagement
 
 final class MenuBarController: NSObject, NSMenuDelegate {
+    private static let logger = Logger(subsystem: "com.browserrouter.app", category: "MenuBarController")
+
     private var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
 
     private let settings: AppSettings
     private let stack: BrowserStack
+    private let urlHandler: URLHandler
     private var browsers: [Browser]
 
-    init(settings: AppSettings, stack: BrowserStack, browsers: [Browser]) {
+    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser]) {
         self.settings = settings
         self.stack = stack
+        self.urlHandler = urlHandler
         self.browsers = browsers
         super.init()
         setupObservers()
     }
 
     private func setupObservers() {
-        stack.$browsers
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateTitle() }
-            .store(in: &cancellables)
-
-        settings.$menuBarDisplayMode
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateTitle() }
-            .store(in: &cancellables)
+        // The target browser changes with focus, settings, and browsers launching or quitting.
+        // receive(on:) defers the update until the @Published value has actually been set.
+        let workspace = NSWorkspace.shared.notificationCenter
+        Publishers.MergeMany(
+            stack.objectWillChange.eraseToAnyPublisher(),
+            settings.objectWillChange.eraseToAnyPublisher(),
+            workspace.publisher(for: NSWorkspace.didLaunchApplicationNotification).map { _ in }.eraseToAnyPublisher(),
+            workspace.publisher(for: NSWorkspace.didTerminateApplicationNotification).map { _ in }.eraseToAnyPublisher()
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] in self?.updateTitle() }
+        .store(in: &cancellables)
     }
 
     func setup() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "BrowserRouter")
+            button.image = Self.menuBarIcon()
         }
 
         let menu = NSMenu()
@@ -44,23 +52,29 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         updateTitle()
     }
 
-    func updateBrowsers(_ browsers: [Browser]) {
-        self.browsers = browsers
-    }
-
     // MARK: - NSMenuDelegate
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // Re-scan so browsers installed or removed since launch show up
+        browsers = addingPickedBrowsers(to: BrowserDetector.detectBrowsers())
         menu.removeAllItems()
         buildMenu(menu)
     }
 
+    /// Apps the user already tracks or falls back to stay listed even when detection
+    /// skips them, so they can still be seen and unticked
+    private func addingPickedBrowsers(to detected: [Browser]) -> [Browser] {
+        var seen = Set(detected.map(\.bundleID))
+        let picked = settings.trackedBrowsers + [settings.fallbackBrowser].compactMap { $0 }
+        let missing = picked.filter { seen.insert($0).inserted }.compactMap(BrowserDetector.browser(withBundleID:))
+        return detected + missing
+    }
+
     private func buildMenu(_ menu: NSMenu) {
         // Status line
-        let statusText = statusLine()
-        let statusItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
+        let statusLineItem = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
+        statusLineItem.isEnabled = false
+        menu.addItem(statusLineItem)
 
         menu.addItem(.separator())
 
@@ -85,7 +99,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Launch at Login
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            loginItem.state = .on
+        case .requiresApproval:
+            // Registered, but waiting for the user to allow it in System Settings
+            loginItem.state = .mixed
+            loginItem.toolTip = "Needs approval in System Settings › General › Login Items"
+        default:
+            loginItem.state = .off
+        }
         loginItem.target = self
         menu.addItem(loginItem)
 
@@ -101,9 +124,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
+    /// The browser the next link will open in, as resolved by URLHandler
+    private var targetBrowser: Browser? {
+        guard let bundleID = urlHandler.targetBrowser() else { return nil }
+        return browsers.first { $0.bundleID == bundleID } ?? BrowserDetector.browser(withBundleID: bundleID)
+    }
+
     private func statusLine() -> String {
-        if let bundleID = stack.mostRecent,
-           let browser = browsers.first(where: { $0.bundleID == bundleID }) {
+        if let browser = targetBrowser {
             return "Opening links in \(browser.name)"
         }
         return "No browser selected"
@@ -145,11 +173,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return submenu
     }
 
+    /// Template glyph copied in by the bundle scripts; the globe covers unbundled `swift run`
+    private static func menuBarIcon() -> NSImage? {
+        guard let icon = Bundle.main.image(forResource: "MenuBarIconTemplate") else {
+            return NSImage(systemSymbolName: "globe", accessibilityDescription: "BrowserRouter")
+        }
+        icon.isTemplate = true
+        icon.accessibilityDescription = "BrowserRouter"
+        return icon
+    }
+
     private func updateTitle() {
         guard let button = statusItem?.button else { return }
 
-        guard let bundleID = stack.mostRecent,
-              let browser = browsers.first(where: { $0.bundleID == bundleID }) else {
+        guard let browser = targetBrowser else {
             button.title = ""
             return
         }
@@ -188,19 +225,35 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleLaunchAtLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled {
+            switch SMAppService.mainApp.status {
+            case .enabled:
                 try SMAppService.mainApp.unregister()
-            } else {
+            case .requiresApproval:
+                // Already registered; only the user can approve it
+                SMAppService.openSystemSettingsLoginItems()
+            default:
                 try SMAppService.mainApp.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    SMAppService.openSystemSettingsLoginItems()
+                }
             }
         } catch {
-            print("Failed to update login item: \(error)")
+            Self.logger.error("Failed to update login item: \(error.localizedDescription, privacy: .public)")
+            showLoginItemError(error)
         }
     }
 
+    private func showLoginItemError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn't update Launch at Login"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        // A menu bar app isn't frontmost, so bring the alert forward
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
     @objc private func setAsDefaultBrowser() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID as CFString)
+        BrowserDetector.setSelfAsDefault()
     }
 }
