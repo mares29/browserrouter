@@ -1,8 +1,11 @@
 import AppKit
 import Combine
+import os
 import ServiceManagement
 
 final class MenuBarController: NSObject, NSMenuDelegate {
+    private static let logger = Logger(subsystem: "com.browserrouter.app", category: "MenuBarController")
+
     private var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
 
@@ -87,7 +90,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Launch at Login
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            loginItem.state = .on
+        case .requiresApproval:
+            // Registered, but waiting for the user to allow it in System Settings
+            loginItem.state = .mixed
+            loginItem.toolTip = "Needs approval in System Settings › General › Login Items"
+        default:
+            loginItem.state = .off
+        }
         loginItem.target = self
         menu.addItem(loginItem)
 
@@ -194,14 +206,32 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleLaunchAtLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled {
+            switch SMAppService.mainApp.status {
+            case .enabled:
                 try SMAppService.mainApp.unregister()
-            } else {
+            case .requiresApproval:
+                // Already registered; only the user can approve it
+                SMAppService.openSystemSettingsLoginItems()
+            default:
                 try SMAppService.mainApp.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    SMAppService.openSystemSettingsLoginItems()
+                }
             }
         } catch {
-            print("Failed to update login item: \(error)")
+            Self.logger.error("Failed to update login item: \(error.localizedDescription, privacy: .public)")
+            showLoginItemError(error)
         }
+    }
+
+    private func showLoginItemError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn't update Launch at Login"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        // A menu bar app isn't frontmost, so bring the alert forward
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc private func setAsDefaultBrowser() {
