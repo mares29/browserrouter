@@ -51,7 +51,8 @@ final class AppSettings: ObservableObject {
         self.defaults = defaults
         self.trackedBrowsers = defaults.stringArray(forKey: Keys.trackedBrowsers) ?? []
         self.fallbackBrowser = defaults.string(forKey: Keys.fallbackBrowser)
-        self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: defaults.integer(forKey: Keys.menuBarDisplayMode)) ?? .iconOnly
+        // Not integer(forKey:): its 0 for a missing key would read as icon only
+        self.menuBarDisplayMode = (defaults.object(forKey: Keys.menuBarDisplayMode) as? Int).flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .iconAndName
         self.rules = defaults.data(forKey: Keys.rules).flatMap { try? JSONDecoder().decode([URLRule].self, from: $0) } ?? []
     }
 }

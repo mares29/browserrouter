@@ -33,6 +33,17 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(reloaded.fallbackBrowser, "com.apple.Safari")
     }
 
+    func test_menuBarDisplayMode_defaultsToIconAndName() {
+        XCTAssertEqual(settings.menuBarDisplayMode, .iconAndName)
+    }
+
+    func test_menuBarDisplayMode_keepsIconOnlyOnceChosen() {
+        settings.menuBarDisplayMode = .iconOnly
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.menuBarDisplayMode, .iconOnly)
+    }
+
     func test_rules_defaultToEmpty() {
         XCTAssertEqual(settings.rules, [])
     }
