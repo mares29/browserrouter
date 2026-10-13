@@ -52,6 +52,9 @@ fi
 # Copy app icon
 cp "$PROJECT_DIR/AppIcon.icns" "$BUNDLE_DIR/Contents/Resources/"
 
+# Copy menu bar icon
+cp "$PROJECT_DIR/assets/MenuBarIconTemplate.png" "$PROJECT_DIR/assets/MenuBarIconTemplate@2x.png" "$BUNDLE_DIR/Contents/Resources/"
+
 # Create PkgInfo
 echo -n "APPL????" > "$BUNDLE_DIR/Contents/PkgInfo"
 

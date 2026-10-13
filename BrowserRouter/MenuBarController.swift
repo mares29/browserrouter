@@ -42,7 +42,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "BrowserRouter")
+            button.image = Self.menuBarIcon()
         }
 
         let menu = NSMenu()
@@ -171,6 +171,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             submenu.addItem(item)
         }
         return submenu
+    }
+
+    /// Template glyph copied in by the bundle scripts; the globe covers unbundled `swift run`
+    private static func menuBarIcon() -> NSImage? {
+        guard let icon = Bundle.main.image(forResource: "MenuBarIconTemplate") else {
+            return NSImage(systemSymbolName: "globe", accessibilityDescription: "BrowserRouter")
+        }
+        icon.isTemplate = true
+        icon.accessibilityDescription = "BrowserRouter"
+        return icon
     }
 
     private func updateTitle() {
