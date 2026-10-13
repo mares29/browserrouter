@@ -27,6 +27,12 @@ All data is stored locally in:
 ~/Library/Preferences/com.browserrouter.app.plist
 ```
 
+The Mac App Store version is sandboxed, so it keeps the same file in its container:
+
+```
+~/Library/Containers/com.browserrouter.app/Data/Library/Preferences/com.browserrouter.app.plist
+```
+
 This file contains:
 - `trackedBrowsers` - Which browsers to monitor
 - `browserStack` - Recent browser order (max 10 entries)
@@ -38,17 +44,15 @@ This file contains:
 
 The source code is fully available. Key files to review:
 
-- [`Sources/BrowserRouter/Settings.swift`](Sources/BrowserRouter/Settings.swift) - All UserDefaults access
-- [`Sources/BrowserRouter/BrowserStack.swift`](Sources/BrowserRouter/BrowserStack.swift) - Browser order storage
-- [`Sources/BrowserRouter/URLHandler.swift`](Sources/BrowserRouter/URLHandler.swift) - URL routing logic (no logging)
+- [`BrowserRouter/Settings.swift`](BrowserRouter/Settings.swift) - All UserDefaults access
+- [`BrowserRouter/BrowserStack.swift`](BrowserRouter/BrowserStack.swift) - Browser order storage
+- [`BrowserRouter/URLHandler.swift`](BrowserRouter/URLHandler.swift) - URL routing logic (no URL logging)
 
 Search the codebase for `URL`, `network`, `http`, or `analytics` to confirm there are no hidden calls.
 
 ## How to Delete Your Data
 
-Either:
-1. Delete `~/Library/Preferences/com.browserrouter.app.plist`
-2. Or simply uninstall the app - macOS removes preferences on app deletion
+Quit BrowserRouter, then delete the file listed under [Where Data Is Stored](#where-data-is-stored) for your version. Deleting the app alone does not remove it.
 
 ## Questions
 
