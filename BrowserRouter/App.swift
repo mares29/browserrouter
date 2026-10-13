@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         focusMonitor = FocusMonitor(settings: settings, stack: stack)
         urlHandler = URLHandler(settings: settings, stack: stack)
-        menuBarController = MenuBarController(settings: settings, stack: stack, urlHandler: urlHandler, browsers: detectedBrowsers)
+        menuBarController = MenuBarController(settings: settings, stack: stack, urlHandler: urlHandler, browsers: detectedBrowsers) { [weak self] in
+            self?.showFirstLaunchWindow()
+        }
 
         menuBarController.setup()
 
@@ -46,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: settings.trackedBrowsers, installed: installed)
             settings.hasLaunchedBefore = true
 
-            showFirstLaunchWindow(previousDefault: previousDefault)
+            showFirstLaunchWindow()
         }
 
         // The link that launched us, now that the settings are seeded
@@ -69,8 +71,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusMonitor.stop()
     }
 
-    private func showFirstLaunchWindow(previousDefault: String?) {
-        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers, previousDefault: previousDefault) { [weak self] in
+    /// The welcome window, on first launch or from Show Welcome… in the menu
+    private func showFirstLaunchWindow() {
+        if let window = firstLaunchWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Scan again, so browsers installed since launch show up when it's opened from the menu
+        detectedBrowsers = BrowserDetector.detectBrowsers()
+
+        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers) { [weak self] in
             self?.firstLaunchWindow?.close()
             self?.firstLaunchWindow = nil
         }
@@ -78,8 +90,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingController = NSHostingController(rootView: firstLaunchView)
 
         let window = NSWindow(contentViewController: hostingController)
+        // We keep our own reference, so closing must not release it as well
+        window.isReleasedWhenClosed = false
         window.title = "Welcome to BrowserRouter"
-        window.styleMask = [.titled, .closable]
+        // Each step has its own heading, so the title bar stays out of the way
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.center()
         window.makeKeyAndOrderFront(nil)
 

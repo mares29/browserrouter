@@ -13,12 +13,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let stack: BrowserStack
     private let urlHandler: URLHandler
     private var browsers: [Browser]
+    private let showWelcome: () -> Void
 
-    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser]) {
+    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser], showWelcome: @escaping () -> Void) {
         self.settings = settings
         self.stack = stack
         self.urlHandler = urlHandler
         self.browsers = browsers
+        self.showWelcome = showWelcome
         super.init()
         setupObservers()
     }
@@ -71,8 +73,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func buildMenu(_ menu: NSMenu) {
+        let isDefault = BrowserDetector.isSelfDefault()
+
         // Status line
-        let statusLineItem = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
+        let statusLineItem = NSMenuItem(title: statusLine(isDefault: isDefault), action: nil, keyEquivalent: "")
         statusLineItem.isEnabled = false
         menu.addItem(statusLineItem)
 
@@ -104,7 +108,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Launch at Login
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        switch SMAppService.mainApp.status {
+        switch LaunchAtLogin.status {
         case .enabled:
             loginItem.state = .on
         case .requiresApproval:
@@ -117,10 +121,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         loginItem.target = self
         menu.addItem(loginItem)
 
-        // Set as Default Browser
-        let defaultItem = NSMenuItem(title: "Set as Default Browser", action: #selector(setAsDefaultBrowser), keyEquivalent: "")
+        // Set as Default Browser, shown ticked and inactive once it is
+        let defaultItem = NSMenuItem(
+            title: isDefault ? "Default Browser" : "Set as Default Browser…",
+            action: isDefault ? nil : #selector(setAsDefaultBrowser),
+            keyEquivalent: ""
+        )
+        defaultItem.state = isDefault ? .on : .off
         defaultItem.target = self
         menu.addItem(defaultItem)
+
+        // The welcome window again, to walk through setup
+        let welcomeItem = NSMenuItem(title: "Show Welcome…", action: #selector(openWelcome), keyEquivalent: "")
+        welcomeItem.target = self
+        menu.addItem(welcomeItem)
 
         menu.addItem(.separator())
 
@@ -135,7 +149,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return browsers.first { $0.bundleID == bundleID } ?? BrowserDetector.browser(withBundleID: bundleID)
     }
 
-    private func statusLine() -> String {
+    private func statusLine(isDefault: Bool) -> String {
+        // Links only reach BrowserRouter while it is the default browser
+        guard isDefault else { return "Not your default browser" }
         if let browser = targetBrowser {
             return "Opening links in \(browser.name)"
         }
@@ -249,7 +265,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     /// Template glyph copied in by the bundle scripts; the globe covers unbundled `swift run`
-    private static func menuBarIcon() -> NSImage? {
+    static func menuBarIcon() -> NSImage? {
         guard let icon = Bundle.main.image(forResource: "MenuBarIconTemplate") else {
             return NSImage(systemSymbolName: "globe", accessibilityDescription: "BrowserRouter")
         }
@@ -342,18 +358,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleLaunchAtLogin() {
         do {
-            switch SMAppService.mainApp.status {
-            case .enabled:
-                try SMAppService.mainApp.unregister()
-            case .requiresApproval:
-                // Already registered; only the user can approve it
-                SMAppService.openSystemSettingsLoginItems()
-            default:
-                try SMAppService.mainApp.register()
-                if SMAppService.mainApp.status == .requiresApproval {
-                    SMAppService.openSystemSettingsLoginItems()
-                }
-            }
+            // Waiting for approval counts as off, so clicking it again opens System Settings
+            try LaunchAtLogin.setEnabled(!LaunchAtLogin.isEnabled)
         } catch {
             Self.logger.error("Failed to update login item: \(error.localizedDescription, privacy: .public)")
             showLoginItemError(error)
@@ -370,7 +376,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         alert.runModal()
     }
 
+    @objc private func openWelcome() {
+        showWelcome()
+    }
+
     @objc private func setAsDefaultBrowser() {
-        BrowserDetector.setSelfAsDefault()
+        BrowserDetector.setSelfAsDefault { [weak self] isDefault in
+            if !isDefault {
+                self?.showNotDefaultAlert()
+            }
+        }
+    }
+
+    /// Declining macOS's prompt, or it failing, would otherwise look like nothing happened
+    private func showNotDefaultAlert() {
+        let current = BrowserDetector.systemDefaultBrowserName() ?? "another browser"
+        let alert = NSAlert()
+        alert.messageText = "BrowserRouter isn't your default browser"
+        alert.informativeText = "Links open in \(current) without going through BrowserRouter. You can also choose the default web browser in System Settings › Desktop & Dock."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "OK")
+        // A menu bar app isn't frontmost, so bring the alert forward
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            BrowserDetector.openDefaultBrowserSettings()
+        }
     }
 }

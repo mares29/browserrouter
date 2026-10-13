@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os
 import UniformTypeIdentifiers
 
 struct Browser: Identifiable, Equatable, Hashable {
@@ -21,6 +22,8 @@ struct Browser: Identifiable, Equatable, Hashable {
 }
 
 enum BrowserDetector {
+    private static let logger = Logger(subsystem: "com.browserrouter.app", category: "BrowserDetector")
+
     /// Browsers tracked by default when the user hasn't picked any
     static let commonBrowserIDs = ["com.apple.Safari", "com.google.Chrome", "company.thebrowser.Browser", "org.mozilla.firefox"]
 
@@ -78,14 +81,70 @@ enum BrowserDetector {
 
     /// Bundle ID of the app macOS currently opens web links with
     static func systemDefaultBrowserID() -> String? {
-        guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: probeURL) else { return nil }
-        return Bundle(url: appURL)?.bundleIdentifier
+        handlerID(forScheme: "https")
     }
 
-    /// Registers BrowserRouter for http/https. macOS asks the user to confirm.
-    static func setSelfAsDefault() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID as CFString)
+    /// Name of the app macOS currently opens web links with
+    static func systemDefaultBrowserName() -> String? {
+        systemDefaultBrowserID().flatMap(browser(withBundleID:))?.name
+    }
+
+    /// Whether macOS sends both http and https links to BrowserRouter
+    static func isSelfDefault() -> Bool {
+        guard let selfID = Bundle.main.bundleIdentifier else { return false }
+        return webSchemes.allSatisfy { handlerID(forScheme: $0) == selfID }
+    }
+
+    /// Registers BrowserRouter for http/https. macOS asks the user to confirm,
+    /// then `completion` gets whether BrowserRouter is now the default.
+    static func setSelfAsDefault(completion: @escaping (Bool) -> Void = { _ in }) {
+        setSelfAsDefault(for: webSchemes[...], completion: completion)
+    }
+
+    private static func setSelfAsDefault(for schemes: ArraySlice<String>, completion: @escaping (Bool) -> Void) {
+        // Every scheme was already ours or macOS accepted it. Don't look it up again:
+        // LaunchServices can take a moment to report the change.
+        guard let scheme = schemes.first else {
+            completion(true)
+            return
+        }
+        let rest = schemes.dropFirst()
+
+        // Accepting the prompt for one scheme can cover both, so skip one that is already ours
+        guard handlerID(forScheme: scheme) != Bundle.main.bundleIdentifier else {
+            setSelfAsDefault(for: rest, completion: completion)
+            return
+        }
+
+        NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme) { error in
+            DispatchQueue.main.async {
+                if let error {
+                    // Also what declining the prompt looks like
+                    logger.error("Could not become the default for \(scheme, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    completion(isSelfDefault())
+                } else {
+                    setSelfAsDefault(for: rest, completion: completion)
+                }
+            }
+        }
+    }
+
+    /// System Settings › Desktop & Dock, where the default web browser is chosen
+    static func openDefaultBrowserSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private static let webSchemes = ["http", "https"]
+
+    private static func handlerID(forScheme scheme: String) -> String? {
+        guard let url = URL(string: "\(scheme)://example.com"),
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+        else { return nil }
+        // The sandbox can't read every app's bundle, but it can always read its own
+        if appURL.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL {
+            return Bundle.main.bundleIdentifier
+        }
+        return Bundle(url: appURL)?.bundleIdentifier
     }
 }
