@@ -22,6 +22,11 @@ final class BrowserDetectorTests: XCTestCase {
         XCTAssertEqual(ids.count, Set(ids).count)
     }
 
+    func test_browserWithBundleID_resolvesInstalledApp() {
+        XCTAssertEqual(BrowserDetector.browser(withBundleID: "com.apple.Safari")?.name, "Safari")
+        XCTAssertNil(BrowserDetector.browser(withBundleID: "com.example.not-installed"))
+    }
+
     func test_isBrowser_keepsHTMLHandlers() {
         XCTAssertTrue(BrowserDetector.isBrowser("com.example.browser", htmlHandlerIDs: ["com.example.browser"]))
     }

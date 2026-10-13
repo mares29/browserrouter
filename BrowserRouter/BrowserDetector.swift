@@ -55,6 +55,16 @@ enum BrowserDetector {
         return browsers.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    /// An installed app as a Browser, whether or not detection lists it
+    static func browser(withBundleID bundleID: String) -> Browser? {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+              let name = Bundle(url: appURL).flatMap({ displayName($0.infoDictionary ?? [:]) })
+        else { return nil }
+
+        let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+        return Browser(bundleID: bundleID, name: name, path: appURL, icon: icon)
+    }
+
     /// Real browsers also open HTML files; apps that only claim web links (chat clients, terminals) don't.
     /// Common browsers are always kept in case their HTML registration is missing.
     static func isBrowser(_ bundleID: String, htmlHandlerIDs: Set<String>) -> Bool {

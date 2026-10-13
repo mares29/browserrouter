@@ -56,9 +56,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         // Re-scan so browsers installed or removed since launch show up
-        browsers = BrowserDetector.detectBrowsers()
+        browsers = addingPickedBrowsers(to: BrowserDetector.detectBrowsers())
         menu.removeAllItems()
         buildMenu(menu)
+    }
+
+    /// Apps the user already tracks or falls back to stay listed even when detection
+    /// skips them, so they can still be seen and unticked
+    private func addingPickedBrowsers(to detected: [Browser]) -> [Browser] {
+        var seen = Set(detected.map(\.bundleID))
+        let picked = settings.trackedBrowsers + [settings.fallbackBrowser].compactMap { $0 }
+        let missing = picked.filter { seen.insert($0).inserted }.compactMap(BrowserDetector.browser(withBundleID:))
+        return detected + missing
     }
 
     private func buildMenu(_ menu: NSMenu) {
@@ -118,7 +127,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// The browser the next link will open in, as resolved by URLHandler
     private var targetBrowser: Browser? {
         guard let bundleID = urlHandler.targetBrowser() else { return nil }
-        return browsers.first { $0.bundleID == bundleID }
+        return browsers.first { $0.bundleID == bundleID } ?? BrowserDetector.browser(withBundleID: bundleID)
     }
 
     private func statusLine() -> String {

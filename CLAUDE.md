@@ -33,8 +33,8 @@ The app has two core flows:
 
 **URL Handling (triggered on link click):**
 - macOS calls `application(_:open:)` because app registers `http`/`https` schemes in Info.plist
-- `URLHandler` reads `BrowserStack`, filters to running browsers, opens URL in first match
-- Falls back to explicit fallback browser, then system default
+- `URLHandler` reads `BrowserStack`, filters to tracked + running browsers, opens URL in first match
+- Falls back to the fallback browser, then the first installed common browser (Safari); never itself, since it is the system default
 
 **Key Components:**
 - `AppDelegate` (App.swift) - Wires everything together, handles URL open events
