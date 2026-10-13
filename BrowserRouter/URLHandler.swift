@@ -14,14 +14,28 @@ final class URLHandler {
     }
 
     func handle(_ urls: [URL]) {
-        guard let browser = targetBrowser() else {
-            Self.logger.error("No browser available to open \(urls.count) link(s)")
-            return
+        // A rule can send each link somewhere else; the rest follow focus
+        let followingFocus = targetBrowser()
+        let batches = Self.batches(urls) { ruleBrowser(for: $0) ?? followingFocus }
+
+        let unrouted = urls.count - batches.reduce(0) { $0 + $1.urls.count }
+        if unrouted > 0 {
+            Self.logger.error("No browser available to open \(unrouted) link(s)")
         }
-        openURLs(urls, inBrowser: browser)
+
+        for batch in batches {
+            openURLs(batch.urls, inBrowser: batch.browser)
+        }
     }
 
-    /// The browser links open in right now: the first candidate that is installed
+    /// The browser a rule sends this link to, or nil to follow focus
+    func ruleBrowser(for url: URL) -> String? {
+        Self.ruleBrowser(for: url, rules: settings.rules, selfID: Bundle.main.bundleIdentifier) {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }
+    }
+
+    /// Where links follow focus to when no rule picks a browser: the first candidate that is installed
     func targetBrowser() -> String? {
         let runningBrowsers = NSWorkspace.shared.runningApplications
             .compactMap { $0.bundleIdentifier }
@@ -46,6 +60,29 @@ final class URLHandler {
 
         var seen = Set<String>()
         return ordered.filter { $0 != selfID && seen.insert($0).inserted }
+    }
+
+    /// The first enabled rule that matches and whose browser is installed wins.
+    /// Its browser opens even if it is not running or tracked; that is the point of a rule.
+    static func ruleBrowser(for url: URL, rules: [URLRule], selfID: String?, isInstalled: (String) -> Bool) -> String? {
+        rules.first { rule in
+            rule.isEnabled && rule.browserID != selfID && rule.matches(url) && isInstalled(rule.browserID)
+        }?.browserID
+    }
+
+    /// Links grouped by the browser that opens them, in the order each browser first comes up.
+    /// Links with no browser are left out.
+    static func batches(_ urls: [URL], browser: (URL) -> String?) -> [(browser: String, urls: [URL])] {
+        var batches: [(browser: String, urls: [URL])] = []
+        for url in urls {
+            guard let bundleID = browser(url) else { continue }
+            if let index = batches.firstIndex(where: { $0.browser == bundleID }) {
+                batches[index].urls.append(url)
+            } else {
+                batches.append((bundleID, [url]))
+            }
+        }
+        return batches
     }
 
     /// Where links go when no tracked browser is running: the browser that opened links

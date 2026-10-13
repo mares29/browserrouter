@@ -33,14 +33,16 @@ The app has two core flows:
 
 **URL Handling (triggered on link click):**
 - macOS calls `application(_:open:)` because app registers `http`/`https` schemes in Info.plist
-- `URLHandler` reads `BrowserStack`, filters to tracked + running browsers, opens URL in first match
+- Each URL is checked against the user's `URLRule`s first: the first enabled match whose browser is installed opens it, even if that browser isn't running or tracked
+- Otherwise `URLHandler` reads `BrowserStack`, filters to tracked + running browsers, opens URL in first match
 - Falls back to the fallback browser, then the first installed common browser (Safari); never itself, since it is the system default
 
 **Key Components:**
 - `AppDelegate` (App.swift) - Wires everything together, handles URL open events
-- `AppSettings` (Settings.swift) - UserDefaults wrapper for `trackedBrowsers`, `fallbackBrowser`, `menuBarDisplayMode`
+- `AppSettings` (Settings.swift) - UserDefaults wrapper for `trackedBrowsers`, `fallbackBrowser`, `menuBarDisplayMode`, `rules` (JSON-encoded `[URLRule]`)
 - `BrowserDetector` - Scans installed browsers using `LSCopyApplicationURLsForURL`
 - `MenuBarController` - NSStatusItem with native NSMenu (built dynamically via `NSMenuDelegate`)
+- `RuleEditor` - NSAlert dialog for adding and editing a rule, opened from the Rules submenu
 
 ## Important Notes
 
