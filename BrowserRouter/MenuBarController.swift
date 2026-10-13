@@ -13,12 +13,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let stack: BrowserStack
     private let urlHandler: URLHandler
     private var browsers: [Browser]
+    private let showWelcome: () -> Void
 
-    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser]) {
+    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser], showWelcome: @escaping () -> Void) {
         self.settings = settings
         self.stack = stack
         self.urlHandler = urlHandler
         self.browsers = browsers
+        self.showWelcome = showWelcome
         super.init()
         setupObservers()
     }
@@ -128,6 +130,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         defaultItem.state = isDefault ? .on : .off
         defaultItem.target = self
         menu.addItem(defaultItem)
+
+        // The welcome window again, to walk through setup
+        let welcomeItem = NSMenuItem(title: "Show Welcome…", action: #selector(openWelcome), keyEquivalent: "")
+        welcomeItem.target = self
+        menu.addItem(welcomeItem)
 
         menu.addItem(.separator())
 
@@ -367,6 +374,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // A menu bar app isn't frontmost, so bring the alert forward
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
+    }
+
+    @objc private func openWelcome() {
+        showWelcome()
     }
 
     @objc private func setAsDefaultBrowser() {
