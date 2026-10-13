@@ -8,7 +8,7 @@ let package = Package(
         .executableTarget(
             name: "BrowserRouter",
             path: "BrowserRouter",
-            exclude: ["Info.plist"]
+            exclude: ["Info.plist", "BrowserRouter.entitlements"]
         ),
         .testTarget(
             name: "BrowserRouterTests",
