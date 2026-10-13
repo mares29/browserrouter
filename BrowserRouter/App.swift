@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.fallbackBrowser = URLHandler.defaultFallback(previousDefault: previousDefault, selected: settings.trackedBrowsers, installed: installed)
             settings.hasLaunchedBefore = true
 
-            showFirstLaunchWindow(previousDefault: previousDefault)
+            showFirstLaunchWindow()
         }
 
         // The link that launched us, now that the settings are seeded
@@ -69,8 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusMonitor.stop()
     }
 
-    private func showFirstLaunchWindow(previousDefault: String?) {
-        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers, previousDefault: previousDefault) { [weak self] in
+    private func showFirstLaunchWindow() {
+        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers) { [weak self] in
             self?.firstLaunchWindow?.close()
             self?.firstLaunchWindow = nil
         }
@@ -79,7 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Welcome to BrowserRouter"
-        window.styleMask = [.titled, .closable]
+        // Each step has its own heading, so the title bar stays out of the way
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.center()
         window.makeKeyAndOrderFront(nil)
 
