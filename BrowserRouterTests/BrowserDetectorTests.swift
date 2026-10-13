@@ -22,6 +22,30 @@ final class BrowserDetectorTests: XCTestCase {
         XCTAssertEqual(ids.count, Set(ids).count)
     }
 
+    func test_isBrowser_keepsHTMLHandlers() {
+        XCTAssertTrue(BrowserDetector.isBrowser("com.example.browser", htmlHandlerIDs: ["com.example.browser"]))
+    }
+
+    func test_isBrowser_dropsLinkOnlyApps() {
+        XCTAssertFalse(BrowserDetector.isBrowser("com.example.chat", htmlHandlerIDs: ["com.example.browser"]))
+    }
+
+    func test_isBrowser_keepsCommonBrowsersWithoutHTML() {
+        for id in BrowserDetector.commonBrowserIDs {
+            XCTAssertTrue(BrowserDetector.isBrowser(id, htmlHandlerIDs: []))
+        }
+    }
+
+    func test_displayName_prefersDisplayName() {
+        let info = ["CFBundleName": "Chrome", "CFBundleDisplayName": "Google Chrome"]
+        XCTAssertEqual(BrowserDetector.displayName(info), "Google Chrome")
+    }
+
+    func test_displayName_fallsBackToBundleName() {
+        XCTAssertEqual(BrowserDetector.displayName(["CFBundleName": "Nightly"]), "Nightly")
+        XCTAssertNil(BrowserDetector.displayName([:]))
+    }
+
     func test_browser_equatable() {
         let a = Browser(bundleID: "com.test", name: "Test", path: URL(fileURLWithPath: "/"), icon: NSImage())
         let b = Browser(bundleID: "com.test", name: "Test", path: URL(fileURLWithPath: "/"), icon: NSImage())

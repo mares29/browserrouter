@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 struct Browser: Identifiable, Equatable, Hashable {
     let bundleID: String
@@ -29,14 +30,20 @@ enum BrowserDetector {
         var browsers: [Browser] = []
         var seen = Set<String>()
 
+        // Compare bundle IDs, not paths: the same app can be registered from several locations
+        let htmlHandlerIDs = Set(NSWorkspace.shared.urlsForApplications(toOpen: UTType.html)
+            .compactMap { Bundle(url: $0)?.bundleIdentifier })
+
         for appURL in NSWorkspace.shared.urlsForApplications(toOpen: probeURL) {
             guard let bundle = Bundle(url: appURL),
                   let bundleID = bundle.bundleIdentifier,
-                  let name = bundle.infoDictionary?["CFBundleName"] as? String ?? bundle.infoDictionary?["CFBundleDisplayName"] as? String
+                  let name = displayName(bundle.infoDictionary ?? [:])
             else { continue }
 
             // Skip ourselves
             if bundleID == Bundle.main.bundleIdentifier { continue }
+
+            guard isBrowser(bundleID, htmlHandlerIDs: htmlHandlerIDs) else { continue }
 
             // The same app can be installed in several places; list it once
             guard seen.insert(bundleID).inserted else { continue }
@@ -46,6 +53,17 @@ enum BrowserDetector {
         }
 
         return browsers.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// Real browsers also open HTML files; apps that only claim web links (chat clients, terminals) don't.
+    /// Common browsers are always kept in case their HTML registration is missing.
+    static func isBrowser(_ bundleID: String, htmlHandlerIDs: Set<String>) -> Bool {
+        htmlHandlerIDs.contains(bundleID) || commonBrowserIDs.contains(bundleID)
+    }
+
+    /// "Google Chrome" rather than its short bundle name "Chrome"
+    static func displayName(_ info: [String: Any]) -> String? {
+        info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String
     }
 
     /// Bundle ID of the app macOS currently opens web links with
