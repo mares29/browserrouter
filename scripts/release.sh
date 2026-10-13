@@ -41,6 +41,14 @@ cp ".build/release/$APP_NAME" "$BUNDLE_DIR/Contents/MacOS/"
 # Copy Info.plist
 cp "$PROJECT_DIR/$APP_NAME/Info.plist" "$BUNDLE_DIR/Contents/"
 
+# Stamp the release version (tag v1.2.3 -> 1.2.3)
+if [ "$VERSION" != "dev" ]; then
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleShortVersionString ${VERSION#v}" \
+        -c "Set :CFBundleVersion ${VERSION#v}" \
+        "$BUNDLE_DIR/Contents/Info.plist"
+fi
+
 # Copy app icon
 cp "$PROJECT_DIR/AppIcon.icns" "$BUNDLE_DIR/Contents/Resources/"
 

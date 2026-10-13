@@ -8,26 +8,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private let settings: AppSettings
     private let stack: BrowserStack
+    private let urlHandler: URLHandler
     private var browsers: [Browser]
 
-    init(settings: AppSettings, stack: BrowserStack, browsers: [Browser]) {
+    init(settings: AppSettings, stack: BrowserStack, urlHandler: URLHandler, browsers: [Browser]) {
         self.settings = settings
         self.stack = stack
+        self.urlHandler = urlHandler
         self.browsers = browsers
         super.init()
         setupObservers()
     }
 
     private func setupObservers() {
-        stack.$browsers
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateTitle() }
-            .store(in: &cancellables)
-
-        settings.$menuBarDisplayMode
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateTitle() }
-            .store(in: &cancellables)
+        // The target browser changes with focus, settings, and browsers launching or quitting.
+        // receive(on:) defers the update until the @Published value has actually been set.
+        let workspace = NSWorkspace.shared.notificationCenter
+        Publishers.MergeMany(
+            stack.objectWillChange.eraseToAnyPublisher(),
+            settings.objectWillChange.eraseToAnyPublisher(),
+            workspace.publisher(for: NSWorkspace.didLaunchApplicationNotification).map { _ in }.eraseToAnyPublisher(),
+            workspace.publisher(for: NSWorkspace.didTerminateApplicationNotification).map { _ in }.eraseToAnyPublisher()
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] in self?.updateTitle() }
+        .store(in: &cancellables)
     }
 
     func setup() {
@@ -44,23 +49,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         updateTitle()
     }
 
-    func updateBrowsers(_ browsers: [Browser]) {
-        self.browsers = browsers
-    }
-
     // MARK: - NSMenuDelegate
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // Re-scan so browsers installed or removed since launch show up
+        browsers = BrowserDetector.detectBrowsers()
         menu.removeAllItems()
         buildMenu(menu)
     }
 
     private func buildMenu(_ menu: NSMenu) {
         // Status line
-        let statusText = statusLine()
-        let statusItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
+        let statusLineItem = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
+        statusLineItem.isEnabled = false
+        menu.addItem(statusLineItem)
 
         menu.addItem(.separator())
 
@@ -101,9 +103,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
+    /// The browser the next link will open in, as resolved by URLHandler
+    private var targetBrowser: Browser? {
+        guard let bundleID = urlHandler.targetBrowser() else { return nil }
+        return browsers.first { $0.bundleID == bundleID }
+    }
+
     private func statusLine() -> String {
-        if let bundleID = stack.mostRecent,
-           let browser = browsers.first(where: { $0.bundleID == bundleID }) {
+        if let browser = targetBrowser {
             return "Opening links in \(browser.name)"
         }
         return "No browser selected"
@@ -148,8 +155,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func updateTitle() {
         guard let button = statusItem?.button else { return }
 
-        guard let bundleID = stack.mostRecent,
-              let browser = browsers.first(where: { $0.bundleID == bundleID }) else {
+        guard let browser = targetBrowser else {
             button.title = ""
             return
         }
@@ -199,8 +205,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func setAsDefaultBrowser() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID as CFString)
+        BrowserDetector.setSelfAsDefault()
     }
 }

@@ -28,29 +28,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         focusMonitor = FocusMonitor(settings: settings, stack: stack)
         urlHandler = URLHandler(settings: settings, stack: stack)
-        menuBarController = MenuBarController(settings: settings, stack: stack, browsers: detectedBrowsers)
+        menuBarController = MenuBarController(settings: settings, stack: stack, urlHandler: urlHandler, browsers: detectedBrowsers)
 
         menuBarController.setup()
 
         focusMonitor.start()
 
         // Check if first launch
-        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
-        if !hasLaunched {
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+        if !settings.hasLaunchedBefore {
+            settings.hasLaunchedBefore = true
             showFirstLaunchWindow()
         } else if settings.trackedBrowsers.isEmpty {
             // Pre-select common browsers if none selected
-            let common = ["com.apple.Safari", "com.google.Chrome", "company.thebrowser.Browser", "org.mozilla.firefox"]
-            let detected = Set(BrowserDetector.detectBrowsers().map(\.bundleID))
-            settings.trackedBrowsers = common.filter { detected.contains($0) }
+            let detected = Set(detectedBrowsers.map(\.bundleID))
+            settings.trackedBrowsers = BrowserDetector.commonBrowserIDs.filter { detected.contains($0) }
         }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            urlHandler.handle(url)
-        }
+        urlHandler.handle(urls)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -58,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showFirstLaunchWindow() {
-        let firstLaunchView = FirstLaunchView(settings: settings) { [weak self] in
+        let firstLaunchView = FirstLaunchView(settings: settings, browsers: detectedBrowsers) { [weak self] in
             self?.firstLaunchWindow?.close()
             self?.firstLaunchWindow = nil
         }

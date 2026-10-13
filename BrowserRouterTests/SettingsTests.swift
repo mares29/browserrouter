@@ -32,4 +32,15 @@ final class AppSettingsTests: XCTestCase {
         let reloaded = AppSettings(defaults: defaults)
         XCTAssertEqual(reloaded.fallbackBrowser, "com.apple.Safari")
     }
+
+    func test_hasLaunchedBefore_defaultsToFalse() {
+        XCTAssertFalse(settings.hasLaunchedBefore)
+    }
+
+    func test_hasLaunchedBefore_persistsChanges() {
+        settings.hasLaunchedBefore = true
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertTrue(reloaded.hasLaunchedBefore)
+    }
 }

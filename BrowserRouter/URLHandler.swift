@@ -10,24 +10,29 @@ final class URLHandler {
         self.stack = stack
     }
 
-    func handle(_ url: URL) {
+    func handle(_ urls: [URL]) {
+        // If no fallback set, URL is not opened (avoids infinite loop since we ARE the default browser)
+        guard let browser = targetBrowser() else { return }
+        openURLs(urls, inBrowser: browser)
+    }
+
+    /// The browser links open in right now: the most recently focused tracked browser
+    /// that is still running, otherwise the fallback browser.
+    func targetBrowser() -> String? {
         let runningBrowsers = NSWorkspace.shared.runningApplications
             .compactMap { $0.bundleIdentifier }
 
-        if let browser = Self.selectBrowser(fromStack: stack.browsers, running: runningBrowsers) {
-            openURL(url, inBrowser: browser)
-        } else if let fallback = settings.fallbackBrowser {
-            openURL(url, inBrowser: fallback)
-        }
-        // If no fallback set, URL is not opened (avoids infinite loop since we ARE the default browser)
+        return Self.selectBrowser(fromStack: stack.browsers, tracked: settings.trackedBrowsers, running: runningBrowsers)
+            ?? settings.fallbackBrowser
     }
 
-    static func selectBrowser(fromStack stack: [String], running: [String]) -> String? {
-        let runningSet = Set(running)
-        return stack.first { runningSet.contains($0) }
+    static func selectBrowser(fromStack stack: [String], tracked: [String], running: [String]) -> String? {
+        // The stack can still hold browsers the user has since untracked
+        let candidates = Set(tracked).intersection(running)
+        return stack.first { candidates.contains($0) }
     }
 
-    private func openURL(_ url: URL, inBrowser bundleID: String) {
+    private func openURLs(_ urls: [URL], inBrowser bundleID: String) {
         let config = NSWorkspace.OpenConfiguration()
 
         guard let browserURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
@@ -35,7 +40,7 @@ final class URLHandler {
             return
         }
 
-        NSWorkspace.shared.open([url], withApplicationAt: browserURL, configuration: config) { _, error in
+        NSWorkspace.shared.open(urls, withApplicationAt: browserURL, configuration: config) { _, error in
             if let error {
                 print("BrowserRouter: Failed to open URL: \(error)")
             }
