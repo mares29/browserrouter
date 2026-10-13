@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var firstLaunchWindow: NSWindow?
     private var detectedBrowsers: [Browser] = []
+    /// Links that arrive before setup finishes
+    private var pendingURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = AppSettings()
@@ -46,9 +48,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             showFirstLaunchWindow(previousDefault: previousDefault)
         }
+
+        // The link that launched us, now that the settings are seeded
+        if !pendingURLs.isEmpty {
+            urlHandler.handle(pendingURLs)
+            pendingURLs = []
+        }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        // A link that launches the app arrives before applicationDidFinishLaunching
+        guard let urlHandler else {
+            pendingURLs += urls
+            return
+        }
         urlHandler.handle(urls)
     }
 
